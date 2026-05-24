@@ -14,10 +14,20 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import sys
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
+
+# macOS-bundled Python does not always trust system CAs. Point urllib /
+# feedparser at the certifi bundle before any HTTPS request is made.
+import certifi
+
+os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+ssl._create_default_https_context = lambda *a, **kw: ssl.create_default_context(
+    cafile=certifi.where()
+)
 
 from openai import OpenAI
 from supabase import create_client
