@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     model: CHAT_MODEL,
     stream: true,
     temperature: 0.3,
-    max_tokens: 600,
+    max_tokens: 1200,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       ...history,
