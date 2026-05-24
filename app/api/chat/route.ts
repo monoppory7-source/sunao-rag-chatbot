@@ -27,13 +27,10 @@ const Body = z.object({
 /**
  * POST /api/chat
  *
- * Response shape:
- *   - Hit: JSON { answer, sources, cached: true }     status 200
- *   - Miss: text/plain stream of answer tokens         status 200
- *           + `X-Sources` header (URL-encoded JSON)
- *           + `X-Cache: MISS`
- *   - Empty retrieval: JSON { answer, sources: [] }    status 200
- *   - Invalid:  JSON { error, issues }                 status 400
+ * Always returns JSON: { answer, sources, cached }.
+ * Streaming was dropped because Next.js 16 dev mode intermittently
+ * truncated the stream on small payloads — a known dev-server quirk
+ * that hurts UX more than the streaming reveal helps.
  */
 export async function POST(req: NextRequest) {
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
@@ -54,10 +51,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ─── Embedding (used for both semantic cache and retrieval) ───
+  // ─── Embedding (reused by semantic cache + retrieval) ─────────
   const queryEmbedding = await embed(message);
 
-  // ─── L3: semantic cache ──────────────────────────────────────
   const semantic = await checkSemanticCache(queryEmbedding).catch(() => null);
   if (semantic) {
     return NextResponse.json(
@@ -83,11 +79,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ─── Streaming chat completion ───────────────────────────────
+  // ─── Non-streaming chat completion ───────────────────────────
   const openai = getOpenAI();
   const completion = await openai.chat.completions.create({
     model: CHAT_MODEL,
-    stream: true,
     temperature: 0.3,
     max_tokens: 1200,
     messages: [
@@ -97,38 +92,15 @@ export async function POST(req: NextRequest) {
     ],
   });
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let full = '';
-      try {
-        for await (const part of completion) {
-          const delta = part.choices[0]?.delta?.content ?? '';
-          if (delta) {
-            full += delta;
-            controller.enqueue(encoder.encode(delta));
-          }
-        }
-      } catch (err) {
-        controller.error(err);
-        return;
-      }
-      controller.close();
+  const answer = completion.choices[0]?.message?.content ?? '';
 
-      // Background — never block the response on a cache write.
-      saveCache({ query: message, queryEmbedding, answer: full, sources }).catch(
-        (e) => console.error('[cache:save] failed', e),
-      );
-    },
-  });
+  // Best-effort cache write (don't block response on failure).
+  saveCache({ query: message, queryEmbedding, answer, sources }).catch((e) =>
+    console.error('[cache:save] failed', e),
+  );
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'X-Cache': 'MISS',
-      'X-Sources': encodeURIComponent(JSON.stringify(sources)),
-      'Cache-Control': 'no-cache, no-transform',
-      'X-Accel-Buffering': 'no',
-    },
-  });
+  return NextResponse.json(
+    { answer, sources, cached: false },
+    { headers: { 'X-Cache': 'MISS' } },
+  );
 }

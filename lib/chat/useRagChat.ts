@@ -10,14 +10,10 @@ export type UiMessage = ChatMessage & {
   pending?: boolean;
 };
 
-type SendState = 'idle' | 'streaming' | 'error';
+type SendState = 'idle' | 'sending' | 'error';
 
 /**
- * Custom chat hook that talks to /api/chat.
- *
- * - Streams plain-text tokens via fetch + ReadableStream reader
- * - Reads `X-Sources` header (encoded JSON) to surface source cards
- * - Falls back to JSON shape when the API returns a cache hit
+ * Chat hook for the /api/chat endpoint (non-streaming JSON).
  */
 export function useRagChat() {
   const [messages, setMessages] = useState<UiMessage[]>([]);
@@ -35,7 +31,7 @@ export function useRagChat() {
   const send = useCallback(
     async (input: string) => {
       const trimmed = input.trim();
-      if (!trimmed || state === 'streaming') return;
+      if (!trimmed || state === 'sending') return;
 
       setError(null);
       const userMsg: UiMessage = {
@@ -53,7 +49,7 @@ export function useRagChat() {
 
       const history = messages.map(({ role, content }) => ({ role, content }));
       setMessages((m) => [...m, userMsg, assistantMsg]);
-      setState('streaming');
+      setState('sending');
 
       const ac = new AbortController();
       abortRef.current = ac;
@@ -71,60 +67,24 @@ export function useRagChat() {
           throw new Error(`HTTP ${res.status}: ${detail.slice(0, 200)}`);
         }
 
-        const contentType = res.headers.get('content-type') ?? '';
-        const cacheHeader = res.headers.get('x-cache') ?? '';
-
-        // ─── JSON path (cache hit / empty retrieval) ───
-        if (contentType.includes('application/json')) {
-          const data = (await res.json()) as {
-            answer: string;
-            sources: Source[];
-            cached?: boolean;
-          };
-          setMessages((m) =>
-            m.map((msg) =>
-              msg.id === assistantId
-                ? {
-                    ...msg,
-                    content: data.answer,
-                    sources: data.sources,
-                    cached: data.cached ?? cacheHeader.startsWith('HIT'),
-                    pending: false,
-                  }
-                : msg,
-            ),
-          );
-          setState('idle');
-          return;
-        }
-
-        // ─── Streaming path ───
-        const sourcesHeader = res.headers.get('x-sources');
-        const sources: Source[] = sourcesHeader
-          ? JSON.parse(decodeURIComponent(sourcesHeader))
-          : [];
+        const data = (await res.json()) as {
+          answer: string;
+          sources: Source[];
+          cached?: boolean;
+        };
 
         setMessages((m) =>
           m.map((msg) =>
-            msg.id === assistantId ? { ...msg, sources, cached: false } : msg,
+            msg.id === assistantId
+              ? {
+                  ...msg,
+                  content: data.answer,
+                  sources: data.sources ?? [],
+                  cached: data.cached ?? false,
+                  pending: false,
+                }
+              : msg,
           ),
-        );
-
-        const reader = res.body!.getReader();
-        const decoder = new TextDecoder();
-        let acc = '';
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          acc += decoder.decode(value, { stream: true });
-          setMessages((m) =>
-            m.map((msg) =>
-              msg.id === assistantId ? { ...msg, content: acc, pending: true } : msg,
-            ),
-          );
-        }
-        setMessages((m) =>
-          m.map((msg) => (msg.id === assistantId ? { ...msg, pending: false } : msg)),
         );
         setState('idle');
       } catch (e) {
@@ -137,11 +97,7 @@ export function useRagChat() {
         setMessages((m) =>
           m.map((x) =>
             x.id === assistantId
-              ? {
-                  ...x,
-                  content: `エラーが発生しました: ${msg}`,
-                  pending: false,
-                }
+              ? { ...x, content: `エラーが発生しました: ${msg}`, pending: false }
               : x,
           ),
         );
