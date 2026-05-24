@@ -1,0 +1,17 @@
+[
+  {
+    "query": "乾燥肌に効くスキンケアの方法を教えて",
+    "expected_video_ids": ["REPLACE_WITH_REAL_YOUTUBE_ID"],
+    "category": "スキンケア"
+  },
+  {
+    "query": "敏感肌でも使えるおすすめの製品は？",
+    "expected_video_ids": ["REPLACE_WITH_REAL_YOUTUBE_ID"],
+    "category": "製品紹介"
+  },
+  {
+    "query": "ニキビの原因と対策について",
+    "expected_video_ids": ["REPLACE_WITH_REAL_YOUTUBE_ID"],
+    "category": "肌トラブル"
+  }
+]

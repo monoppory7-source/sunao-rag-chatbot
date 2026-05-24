@@ -1,0 +1,8 @@
+feedparser>=6.0
+yt-dlp>=2024.11
+webvtt-py>=0.5
+openai>=1.50
+supabase>=2.9
+tenacity>=9.0
+python-dotenv>=1.0
+tiktoken>=0.8

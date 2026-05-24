@@ -1,0 +1,50 @@
+name: Ingest YouTube videos
+
+on:
+  schedule:
+    # Hourly at minute 0 (UTC). New videos surface in RSS ~15 min after upload.
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      video_ids:
+        description: 'Optional space-separated YouTube IDs for backfill'
+        required: false
+        type: string
+
+# Prevent overlapping runs — ingest is not safe to parallelise (race on UPSERT
+# could leave a half-written video with is_active=true).
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: scripts/ingest/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r scripts/ingest/requirements.txt
+
+      - name: Run ingest pipeline
+        working-directory: scripts/ingest
+        env:
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "${{ inputs.video_ids }}" ]; then
+            python pipeline.py ${{ inputs.video_ids }}
+          else
+            python pipeline.py
+          fi
