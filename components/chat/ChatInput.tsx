@@ -40,6 +40,10 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
         className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-neutral-900 outline-none placeholder:text-neutral-500"
         maxLength={500}
         disabled={disabled && !streaming}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
       />
       {streaming ? (
         <button
