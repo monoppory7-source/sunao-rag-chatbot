@@ -29,6 +29,7 @@ ssl._create_default_https_context = lambda *a, **kw: ssl.create_default_context(
     cafile=certifi.where()
 )
 
+import yt_dlp
 from openai import OpenAI
 from supabase import create_client
 
@@ -37,6 +38,26 @@ from steps.diff_db import diff_db
 from steps.embed_and_upsert import embed_and_upsert
 from steps.fetch_rss import RssEntry, fetch_rss
 from steps.fetch_transcript import fetch_transcript
+
+
+def _fetch_meta(youtube_id: str, channel_id: str) -> RssEntry:
+    """Pull real title/published_at/thumbnail via yt-dlp for a single video."""
+    with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True}) as ydl:
+        info = ydl.extract_info(
+            f"https://www.youtube.com/watch?v={youtube_id}", download=False
+        )
+    upload_date = info.get("upload_date")  # "YYYYMMDD"
+    if upload_date:
+        published_at = datetime.strptime(upload_date, "%Y%m%d").replace(tzinfo=timezone.utc)
+    else:
+        published_at = datetime.now(tz=timezone.utc)
+    return RssEntry(
+        youtube_id=youtube_id,
+        title=info.get("title") or f"(backfill) {youtube_id}",
+        channel_id=info.get("channel_id") or channel_id,
+        published_at=published_at,
+        thumbnail_url=info.get("thumbnail"),
+    )
 
 
 @dataclass
@@ -120,20 +141,14 @@ def main() -> int:
 
     explicit_ids = sys.argv[1:]
     if explicit_ids:
-        # Backfill mode — synthesise minimal RssEntry rows for given IDs.
-        # Real metadata is overwritten by yt-dlp inside embed_and_upsert
-        # only for transcripts; for titles we keep a placeholder and rely on
-        # the next RSS sweep to overwrite if needed.
-        targets = [
-            RssEntry(
-                youtube_id=vid,
-                title=f"(backfill) {vid}",
-                channel_id=cfg.channel_id,
-                published_at=datetime.now(tz=timezone.utc),
-                thumbnail_url=None,
-            )
-            for vid in explicit_ids
-        ]
+        # Backfill mode — fetch real metadata for each ID via yt-dlp.
+        print(f"[ingest] backfill mode for {len(explicit_ids)} ids")
+        targets: list[RssEntry] = []
+        for vid in explicit_ids:
+            try:
+                targets.append(_fetch_meta(vid, cfg.channel_id))
+            except Exception as e:  # noqa: BLE001
+                print(f"  metadata fetch failed for {vid}: {e}")
     else:
         rss = fetch_rss(cfg.channel_id)
         print(f"[ingest] RSS returned {len(rss)} entries")

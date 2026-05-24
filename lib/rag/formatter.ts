@@ -3,21 +3,13 @@ import { buildYoutubeUrl, buildThumbnailUrl } from '@/lib/utils/youtube';
 import { formatTimestamp } from '@/lib/utils/time';
 
 /**
- * Deduplicate chunks by video — when several chunks of the same video
- * are retrieved we keep the highest-scoring one and surface it as a
- * single source card in the UI.
+ * Map every retrieved chunk to a Source entry, preserving the order that
+ * was given to the LLM. We intentionally do NOT dedupe by video — the LLM's
+ * citation markers ([1], [2], ...) must line up 1:1 with what the user sees,
+ * otherwise an answer can reference [3] when only two unique videos are shown.
  */
 export function chunksToSources(chunks: RetrievedChunk[]): Source[] {
-  const byVideo = new Map<string, RetrievedChunk>();
-  for (const c of chunks) {
-    const existing = byVideo.get(c.video_id);
-    const score = c.final_score ?? c.similarity;
-    const existingScore = existing
-      ? (existing.final_score ?? existing.similarity)
-      : -Infinity;
-    if (!existing || score > existingScore) byVideo.set(c.video_id, c);
-  }
-  return Array.from(byVideo.values()).map((c) => ({
+  return chunks.map((c) => ({
     videoId: c.video_id,
     title: c.title,
     url: buildYoutubeUrl(c.youtube_id, c.start_sec),
