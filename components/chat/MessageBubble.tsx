@@ -24,13 +24,9 @@ export function MessageBubble({ message }: { message: UiMessage }) {
             cached
           </span>
         )}
-        {!isUser && message.sources && message.sources.length > 0 && (
-          <div className="mt-3 flex flex-col gap-2 border-t border-neutral-200 pt-3">
-            {message.sources.map((s, i) => (
-              <SourceCard key={s.videoId + i} source={s} index={i} />
-            ))}
-          </div>
-        )}
+        {/* Source cards intentionally hidden — text-only chat per UX request.
+            Sources are still returned by the API; flip back on by re-rendering
+            <SourceCard /> here if needed. */}
       </div>
     </div>
   );
