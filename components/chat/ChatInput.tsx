@@ -37,7 +37,7 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
         onKeyDown={handleKey}
         rows={1}
         placeholder="質問を入力してください（Enter で送信、Shift+Enter で改行）"
-        className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-neutral-400"
+        className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-neutral-900 outline-none placeholder:text-neutral-500"
         maxLength={500}
         disabled={disabled && !streaming}
       />
