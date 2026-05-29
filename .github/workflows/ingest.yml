@@ -43,6 +43,45 @@ jobs:
       - name: Force-upgrade yt-dlp to latest
         run: pip install --upgrade --no-cache-dir yt-dlp
 
+      # TEMPORARY DEBUG: diagnose persistent "RSS parse error" failure.
+      # Prints only length + first 4 / last 2 chars of the secret (never the
+      # full value), then probes the actual RSS endpoint to separate
+      # "wrong channel id" from "YouTube blocking GitHub IPs".
+      # Remove this step once the root cause is identified.
+      - name: DEBUG — verify YOUTUBE_CHANNEL_ID and RSS reachability
+        env:
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+        run: |
+          LEN=${#YOUTUBE_CHANNEL_ID}
+          HEAD="${YOUTUBE_CHANNEL_ID:0:4}"
+          TAIL="${YOUTUBE_CHANNEL_ID: -2}"
+          echo "=== Secret value (masked) ==="
+          echo "Length     : $LEN chars  (expected 24)"
+          echo "First 4    : [$HEAD]     (expected UCuA)"
+          echo "Last  2    : [$TAIL]     (expected Qg)"
+          if [ "${YOUTUBE_CHANNEL_ID:0:2}" = "UC" ]; then
+            echo "Prefix OK  : starts with UC"
+          else
+            echo "Prefix BAD : does NOT start with UC"
+          fi
+
+          echo
+          echo "=== Probing YouTube RSS endpoint ==="
+          URL="https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}"
+          STATUS=$(curl -s -o /tmp/rss.xml -w "%{http_code}" \
+            -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
+            "$URL" || echo "curl_failed")
+          CT=$(curl -s -o /dev/null -w "%{content_type}" \
+            -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
+            "$URL")
+          SIZE=$(wc -c < /tmp/rss.xml)
+          echo "HTTP status : $STATUS  (200 = OK, 404 = bad id or blocked)"
+          echo "Content-Type: $CT      (text/xml = OK, text/html = error page)"
+          echo "Body size   : $SIZE bytes"
+          echo "--- First 5 lines of body ---"
+          head -5 /tmp/rss.xml
+          echo "--- End ---"
+
       - name: Run ingest pipeline
         working-directory: scripts/ingest
         env:
