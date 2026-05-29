@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 
 type Props = {
   onSend: (text: string) => void;
@@ -11,11 +11,19 @@ type Props = {
 
 export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
   const [value, setValue] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   function submit() {
-    if (!value.trim() || disabled) return;
-    onSend(value);
+    if (disabled) return;
+    // Prefer the live DOM value over React state. Mobile Japanese IMEs
+    // commit text only after the user picks a kanji candidate, so React's
+    // onChange can lag the visible text. Reading the ref captures whatever
+    // the user actually sees on screen.
+    const text = (textareaRef.current?.value ?? value).trim();
+    if (!text) return;
+    onSend(text);
     setValue('');
+    if (textareaRef.current) textareaRef.current.value = '';
   }
 
   function handleKey(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -34,6 +42,7 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
       className="flex items-end gap-2 rounded-2xl border border-neutral-300 bg-white p-2 shadow-sm focus-within:border-neutral-500"
     >
       <textarea
+        ref={textareaRef}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKey}
@@ -51,9 +60,6 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
       {streaming ? (
         <button
           type="button"
-          // onMouseDown also fires for touch on iOS Safari; preventing default
-          // here keeps the textarea focused so the keyboard does not dismiss
-          // and consume the subsequent tap.
           onMouseDown={(e) => e.preventDefault()}
           onClick={onStop}
           className="touch-manipulation min-h-[44px] min-w-[60px] shrink-0 rounded-lg bg-neutral-200 px-4 text-sm font-medium text-neutral-700 active:bg-neutral-300"
@@ -62,11 +68,12 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
         </button>
       ) : (
         <button
-          // type="button" instead of "submit" so the form's onSubmit cannot
-          // double-fire alongside this onClick (which previously could send
-          // the same message twice on devices that fire both events).
           type="button"
-          disabled={!value.trim() || disabled}
+          // Only disabled while streaming. Removing the value-based disable
+          // means Japanese IME composing text (which has not yet fired
+          // onChange) doesn't grey out the button; submit() reads the live
+          // DOM value to send what the user actually sees.
+          disabled={disabled}
           onMouseDown={(e) => e.preventDefault()}
           onClick={submit}
           className="touch-manipulation min-h-[44px] min-w-[60px] shrink-0 rounded-lg bg-neutral-900 px-4 text-sm font-medium text-white transition active:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
