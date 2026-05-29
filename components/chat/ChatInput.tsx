@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type KeyboardEvent, type TouchEvent } from 'react';
 
 type Props = {
   onSend: (text: string) => void;
@@ -12,8 +12,15 @@ type Props = {
 export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Guards against double-fire when multiple of {touchend, click, form onSubmit}
+  // resolve on the same tap. Anything within 400ms is treated as the same gesture.
+  const lastFiredAt = useRef(0);
 
   function submit() {
+    const now = Date.now();
+    if (now - lastFiredAt.current < 400) return;
+    lastFiredAt.current = now;
+
     if (disabled) return;
     // Prefer the live DOM value over React state. Mobile Japanese IMEs
     // commit text only after the user picks a kanji candidate, so React's
@@ -30,6 +37,16 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
       e.preventDefault();
       submit();
     }
+  }
+
+  // On iOS Safari, when a textarea has focus and the user taps the send
+  // button, the textarea blurs → keyboard dismisses → viewport reflows, and
+  // the synthetic click is frequently dropped because touchend lands on a
+  // different element. Firing on touchend (before the reflow) is much more
+  // reliable; we then preventDefault to suppress the no-longer-needed click.
+  function handleTouchEnd(e: TouchEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    submit();
   }
 
   return (
@@ -60,15 +77,20 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
         <button
           type="button"
           onClick={onStop}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            onStop();
+          }}
           className="touch-manipulation min-h-[44px] min-w-[60px] shrink-0 rounded-lg bg-neutral-200 px-4 text-sm font-medium text-neutral-700 active:bg-neutral-300"
         >
           停止
         </button>
       ) : (
         <button
-          type="button"
+          type="submit"
           disabled={disabled}
           onClick={submit}
+          onTouchEnd={handleTouchEnd}
           className="touch-manipulation min-h-[44px] min-w-[60px] shrink-0 rounded-lg bg-neutral-900 px-4 text-sm font-medium text-white transition active:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
         >
           送信
