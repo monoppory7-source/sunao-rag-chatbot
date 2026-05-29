@@ -1,5 +1,5 @@
 feedparser>=6.0
-yt-dlp>=2024.11
+yt-dlp>=2025.10
 webvtt-py>=0.5
 openai>=1.50
 supabase>=2.9

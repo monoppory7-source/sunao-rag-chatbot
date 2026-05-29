@@ -2,8 +2,10 @@ name: Ingest YouTube videos
 
 on:
   schedule:
-    # Hourly at minute 0 (UTC). New videos surface in RSS ~15 min after upload.
-    - cron: '0 * * * *'
+    # Daily at 00:00 UTC (= 09:00 JST). Sunao Pharmaceutical's channel does not
+    # publish hourly, so hourly polling is wasted budget + noisy failure pings.
+    # Manual `workflow_dispatch` is still available for ad-hoc runs.
+    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
       video_ids:
@@ -33,6 +35,13 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r scripts/ingest/requirements.txt
+
+      # YouTube changes its extraction backend every few weeks and any cached
+      # yt-dlp quickly becomes stale (Bot-detection / "Sign in to confirm you're
+      # not a bot" errors). Always pull the latest yt-dlp on top of the
+      # requirements pin, regardless of pip cache state.
+      - name: Force-upgrade yt-dlp to latest
+        run: pip install --upgrade --no-cache-dir yt-dlp
 
       - name: Run ingest pipeline
         working-directory: scripts/ingest
