@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 
 type Props = {
   onSend: (text: string) => void;
@@ -12,8 +12,7 @@ type Props = {
 export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
   const [value, setValue] = useState('');
 
-  function submit(e?: FormEvent) {
-    e?.preventDefault();
+  function submit() {
     if (!value.trim() || disabled) return;
     onSend(value);
     setValue('');
@@ -28,7 +27,10 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
 
   return (
     <form
-      onSubmit={submit}
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
       className="flex items-end gap-2 rounded-2xl border border-neutral-300 bg-white p-2 shadow-sm focus-within:border-neutral-500"
     >
       <textarea
@@ -36,8 +38,9 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKey}
         rows={1}
-        placeholder="質問を入力してください（Enter で送信、Shift+Enter で改行）"
-        className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-neutral-900 outline-none placeholder:text-neutral-500"
+        placeholder="質問を入力（Enter で送信）"
+        // text-base = 16px: avoids iOS Safari auto-zoom on focus.
+        className="flex-1 resize-none bg-transparent px-2 py-2 text-base text-neutral-900 outline-none placeholder:text-neutral-500"
         maxLength={500}
         disabled={disabled && !streaming}
         autoComplete="off"
@@ -48,25 +51,25 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
       {streaming ? (
         <button
           type="button"
-          // Keep the keyboard from being dismissed by the tap so the click
-          // fires reliably on iOS Safari.
-          onPointerDown={(e) => e.preventDefault()}
+          // onMouseDown also fires for touch on iOS Safari; preventing default
+          // here keeps the textarea focused so the keyboard does not dismiss
+          // and consume the subsequent tap.
+          onMouseDown={(e) => e.preventDefault()}
           onClick={onStop}
-          className="touch-manipulation rounded-lg bg-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-300"
+          className="touch-manipulation min-h-[44px] min-w-[60px] shrink-0 rounded-lg bg-neutral-200 px-4 text-sm font-medium text-neutral-700 active:bg-neutral-300"
         >
           停止
         </button>
       ) : (
         <button
-          type="submit"
+          // type="button" instead of "submit" so the form's onSubmit cannot
+          // double-fire alongside this onClick (which previously could send
+          // the same message twice on devices that fire both events).
+          type="button"
           disabled={!value.trim() || disabled}
-          // iOS fix: prevent the textarea blur that would otherwise eat the
-          // tap and prevent the click from firing while the keyboard closes.
-          onPointerDown={(e) => e.preventDefault()}
-          // Safety net: even if the form's onSubmit doesn't fire reliably
-          // (rare iOS edge case), the explicit onClick still triggers submit.
-          onClick={() => submit()}
-          className="touch-manipulation rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={submit}
+          className="touch-manipulation min-h-[44px] min-w-[60px] shrink-0 rounded-lg bg-neutral-900 px-4 text-sm font-medium text-white transition active:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
         >
           送信
         </button>
