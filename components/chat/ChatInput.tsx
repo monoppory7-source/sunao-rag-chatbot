@@ -12,8 +12,8 @@ type Props = {
 export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
   const [value, setValue] = useState('');
 
-  function submit(e: FormEvent) {
-    e.preventDefault();
+  function submit(e?: FormEvent) {
+    e?.preventDefault();
     if (!value.trim() || disabled) return;
     onSend(value);
     setValue('');
@@ -22,7 +22,7 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
   function handleKey(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      submit(e);
+      submit();
     }
   }
 
@@ -48,8 +48,11 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
       {streaming ? (
         <button
           type="button"
+          // Keep the keyboard from being dismissed by the tap so the click
+          // fires reliably on iOS Safari.
+          onPointerDown={(e) => e.preventDefault()}
           onClick={onStop}
-          className="rounded-lg bg-neutral-200 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-300"
+          className="touch-manipulation rounded-lg bg-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-300"
         >
           停止
         </button>
@@ -57,7 +60,13 @@ export function ChatInput({ onSend, onStop, disabled, streaming }: Props) {
         <button
           type="submit"
           disabled={!value.trim() || disabled}
-          className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
+          // iOS fix: prevent the textarea blur that would otherwise eat the
+          // tap and prevent the click from firing while the keyboard closes.
+          onPointerDown={(e) => e.preventDefault()}
+          // Safety net: even if the form's onSubmit doesn't fire reliably
+          // (rare iOS edge case), the explicit onClick still triggers submit.
+          onClick={() => submit()}
+          className="touch-manipulation rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
         >
           送信
         </button>
