@@ -13,6 +13,23 @@ export type UiMessage = ChatMessage & {
 type SendState = 'idle' | 'sending' | 'error';
 
 /**
+ * crypto.randomUUID() is only available on secure contexts (HTTPS or
+ * localhost). Phones accessing the dev server over a LAN IP (HTTP)
+ * fall into an insecure context where crypto.randomUUID is undefined,
+ * which previously crashed send() and silently broke the whole chat.
+ * Message IDs only need to be unique within this session, so a small
+ * random + counter combination is sufficient.
+ */
+let _idCounter = 0;
+function makeId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  _idCounter += 1;
+  return `msg-${Date.now().toString(36)}-${_idCounter.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
  * Chat hook for the /api/chat endpoint (non-streaming JSON).
  */
 export function useRagChat() {
@@ -35,11 +52,11 @@ export function useRagChat() {
 
       setError(null);
       const userMsg: UiMessage = {
-        id: crypto.randomUUID(),
+        id: makeId(),
         role: 'user',
         content: trimmed,
       };
-      const assistantId = crypto.randomUUID();
+      const assistantId = makeId();
       const assistantMsg: UiMessage = {
         id: assistantId,
         role: 'assistant',
