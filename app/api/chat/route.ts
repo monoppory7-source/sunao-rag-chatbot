@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         answer:
-          '申し訳ございません。動画内に該当する情報が見つかりませんでした。別の言い回しでお試しください。',
+          '申し訳ございません。参照可能な情報が見つかりませんでした。別の言い回しでお試しください。',
         sources: [],
         cached: false,
       },

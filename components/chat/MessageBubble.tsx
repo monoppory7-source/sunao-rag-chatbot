@@ -47,7 +47,11 @@ export function MessageBubble({ message }: { message: UiMessage }) {
                     <span className="line-clamp-1 align-middle">
                       {s.title}
                     </span>
-                    <span className="ml-1 text-neutral-500">{s.timestamp}〜</span>
+                    {s.timestamp && (
+                      <span className="ml-1 text-neutral-500">
+                        {s.timestamp}〜
+                      </span>
+                    )}
                   </a>
                 </li>
               ))}
