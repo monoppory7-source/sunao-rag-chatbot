@@ -6,7 +6,7 @@ import { MessageList } from './MessageList';
 
 export function ChatContainer() {
   const { messages, state, error, send, stop, reset } = useRagChat();
-  const streaming = state === 'streaming';
+  const streaming = state === 'sending';
 
   return (
     <section className="flex h-[70dvh] min-h-[480px] flex-col rounded-2xl border border-neutral-200 bg-neutral-50">
